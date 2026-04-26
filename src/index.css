@@ -1,0 +1,46 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap');
+
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Outfit', 'Helvetica Neue', Arial, sans-serif;
+  
+  --color-primary: #2563eb;
+  --color-surface: #f8fafc;
+  --color-border: #e2e8f0;
+  --color-text-main: #1e293b;
+  --color-text-muted: #64748b;
+  --color-search-bg: #f1f5f9;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-text-main);
+    @apply antialiased;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .card-border {
+    border: 1px solid var(--color-border);
+  }
+  
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
