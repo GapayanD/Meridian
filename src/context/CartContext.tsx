@@ -13,62 +13,77 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
-export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [cart, setCart] = useState<CartItem[]>(() => {
-    const saved = localStorage.getItem('cart');
-    return saved ? JSON.parse(saved) : [];
-  });
+// ── Safe localStorage helpers ──────────────────────────────────────────────────
+function readCart(): CartItem[] {
+  try {
+    const raw = localStorage.getItem('cart');
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    // Basic schema guard: must be an array
+    if (!Array.isArray(parsed)) return [];
+    return parsed as CartItem[];
+  } catch {
+    // Handles: JSON.parse errors, Safari private mode SecurityError
+    return [];
+  }
+}
 
-  useEffect(() => {
+function writeCart(cart: CartItem[]): void {
+  try {
     localStorage.setItem('cart', JSON.stringify(cart));
-  }, [cart]);
+  } catch {
+    // Swallow write errors (private mode, storage full) — cart still works in memory
+  }
+}
 
-  const generateVariantKey = (variants: Record<string, string>) => {
-    return Object.entries(variants)
-      .sort((a, b) => a[0].localeCompare(b[0]))
+// ── Provider ───────────────────────────────────────────────────────────────────
+export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [cart, setCart] = useState<CartItem[]>(readCart);
+
+  useEffect(() => { writeCart(cart); }, [cart]);
+
+  const generateVariantKey = (variants: Record<string, string>): string =>
+    Object.entries(variants)
+      .sort(([a], [b]) => a.localeCompare(b))
       .map(([k, v]) => `${k}:${v}`)
       .join('|');
-  };
 
-  const addToCart = (product: Product, variants: Record<string, string> = {}, quantity: number = 1) => {
-    setCart((prev) => {
-      const existingItemIndex = prev.findIndex(item => 
-        item.id === product.id && JSON.stringify(item.selectedVariants) === JSON.stringify(variants)
+  const addToCart = (product: Product, variants: Record<string, string> = {}, quantity = 1) => {
+    setCart(prev => {
+      const existingIndex = prev.findIndex(
+        item => item.id === product.id &&
+          generateVariantKey(item.selectedVariants) === generateVariantKey(variants),
       );
-
-      if (existingItemIndex > -1) {
-        const newCart = [...prev];
-        newCart[existingItemIndex].quantity += quantity;
-        return newCart;
+      if (existingIndex > -1) {
+        const next = [...prev];
+        next[existingIndex] = { ...next[existingIndex], quantity: next[existingIndex].quantity + quantity };
+        return next;
       }
-
       return [...prev, { ...product, quantity, selectedVariants: variants }];
     });
   };
 
   const removeFromCart = (productId: string, variantKey?: string) => {
-    setCart((prev) => prev.filter(item => {
-      if (!variantKey) return item.id !== productId;
-      const currentKey = generateVariantKey(item.selectedVariants);
-      return !(item.id === productId && currentKey === variantKey);
+    setCart(prev => prev.filter(item => {
+      if (item.id !== productId) return true;
+      if (!variantKey) return false;
+      return generateVariantKey(item.selectedVariants) !== variantKey;
     }));
   };
 
   const updateQuantity = (productId: string, quantity: number, variantKey?: string) => {
-    if (quantity < 1) return;
-    setCart((prev) => prev.map(item => {
-      const currentKey = generateVariantKey(item.selectedVariants);
-      if (item.id === productId && (variantKey ? currentKey === variantKey : true)) {
-        return { ...item, quantity };
-      }
-      return item;
+    if (quantity < 1) { removeFromCart(productId, variantKey); return; }
+    setCart(prev => prev.map(item => {
+      if (item.id !== productId) return item;
+      if (variantKey && generateVariantKey(item.selectedVariants) !== variantKey) return item;
+      return { ...item, quantity };
     }));
   };
 
   const clearCart = () => setCart([]);
 
-  const cartCount = cart.reduce((total, item) => total + item.quantity, 0);
-  const cartTotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+  const cartCount = cart.reduce((t, i) => t + i.quantity, 0);
+  const cartTotal = cart.reduce((t, i) => t + i.price * i.quantity, 0);
 
   return (
     <CartContext.Provider value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart, cartCount, cartTotal }}>
@@ -78,7 +93,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 };
 
 export const useCart = () => {
-  const context = useContext(CartContext);
-  if (!context) throw new Error('useCart must be used within a CartProvider');
-  return context;
+  const ctx = useContext(CartContext);
+  if (!ctx) throw new Error('useCart must be used within a CartProvider');
+  return ctx;
 };

@@ -1,25 +1,20 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
-// Replace these with your actual Supabase project credentials.
-// Get them from: https://supabase.com/dashboard → Project Settings → API
-const SUPABASE_URL = "";
-const SUPABASE_PUBLISHABLE_KEY = "";
+const SUPABASE_URL     = import.meta.env.VITE_SUPABASE_URL     ?? '';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
 
-let supabaseClient: SupabaseClient | null = null;
+export const isSupabaseConfigured =
+  SUPABASE_URL.startsWith('https://') && SUPABASE_ANON_KEY.length > 10;
 
-export const getSupabase = () => {
-  if (!supabaseClient) {
-    const isConfigured = SUPABASE_URL.startsWith('https://') && SUPABASE_PUBLISHABLE_KEY.length > 10;
+if (!isSupabaseConfigured && import.meta.env.DEV) {
+  console.warn(
+    '[Supabase] Not configured. Create .env.local with:\n' +
+    '  VITE_SUPABASE_URL=https://xxxx.supabase.co\n' +
+    '  VITE_SUPABASE_ANON_KEY=your-anon-key',
+  );
+}
 
-    if (!isConfigured) {
-      // Return a minimal stub that won't crash the app but will fail gracefully on DB calls
-      return createClient("https://placeholder.supabase.co", "placeholder-key");
-    }
-
-    supabaseClient = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
-  }
-  return supabaseClient;
-};
-
-export const supabase = getSupabase();
-export const isSupabaseConfigured = SUPABASE_URL.startsWith('https://') && SUPABASE_PUBLISHABLE_KEY.length > 10;
+export const supabase = createClient(
+  isSupabaseConfigured ? SUPABASE_URL      : 'https://placeholder.supabase.co',
+  isSupabaseConfigured ? SUPABASE_ANON_KEY : 'placeholder-key',
+);
