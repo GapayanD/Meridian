@@ -7,7 +7,6 @@ import {
   Trash2,
   X,
   Search,
-  ChevronDown,
   ImageOff,
   Zap,
   RefreshCw,
@@ -37,10 +36,20 @@ interface Product {
   active: boolean;
 }
 
-type ProductDraft = Omit<
-  Product,
-  "id" | "rating" | "reviews_count" | "sold_count"
->;
+// ── Draft uses strings for numeric fields so the input can be cleared freely ──
+type ProductDraft = {
+  name: string;
+  price: number | string;
+  original_price: number | string | null;
+  image: string;
+  images: string[];
+  category: string;
+  description: string;
+  variants: Variant[];
+  is_flash_sale: boolean;
+  stock: number | string;
+  active: boolean;
+};
 
 const CATEGORIES = [
   "Electronics",
@@ -55,15 +64,15 @@ const CATEGORIES = [
 
 const EMPTY_DRAFT: ProductDraft = {
   name: "",
-  price: 0,
-  original_price: null,
+  price: "",
+  original_price: "",
   image: "",
   images: [],
   category: "Electronics",
   description: "",
   variants: [],
   is_flash_sale: false,
-  stock: 0,
+  stock: "",
   active: true,
 };
 
@@ -86,7 +95,6 @@ const AdminProducts: React.FC = () => {
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
-    // Admin bypasses active filter — fetch everything
     const { data, error } = await supabase
       .from("products")
       .select("*")
@@ -116,7 +124,8 @@ const AdminProducts: React.FC = () => {
       setFormError("Product name is required.");
       return false;
     }
-    if (draft.price <= 0) {
+    const parsedPrice = Number(draft.price);
+    if (!draft.price && draft.price !== 0 || isNaN(parsedPrice) || parsedPrice <= 0) {
       setFormError("Price must be greater than 0.");
       return false;
     }
@@ -128,7 +137,8 @@ const AdminProducts: React.FC = () => {
       setFormError("Description is required.");
       return false;
     }
-    if (draft.stock < 0) {
+    const parsedStock = Number(draft.stock);
+    if (draft.stock !== "" && (isNaN(parsedStock) || parsedStock < 0)) {
       setFormError("Stock cannot be negative.");
       return false;
     }
@@ -148,8 +158,9 @@ const AdminProducts: React.FC = () => {
   const openEdit = (p: Product) => {
     setDraft({
       name: p.name,
+      // Store as string so the input field can be fully cleared/edited
       price: p.price,
-      original_price: p.original_price,
+      original_price: p.original_price ?? "",
       image: p.image,
       images: p.images,
       category: p.category,
@@ -207,11 +218,11 @@ const AdminProducts: React.FC = () => {
     const payload = {
       ...draft,
       price: Number(draft.price),
-      original_price: draft.original_price
-        ? Number(draft.original_price)
-        : null,
-      stock: Number(draft.stock),
-      // Ensure main image is always first in images array
+      original_price:
+        draft.original_price !== "" && draft.original_price !== null
+          ? Number(draft.original_price)
+          : null,
+      stock: draft.stock !== "" ? Number(draft.stock) : 0,
       images: [
         draft.image,
         ...draft.images.filter((u) => u && u !== draft.image),
@@ -261,6 +272,7 @@ const AdminProducts: React.FC = () => {
     </div>
   );
 
+  // ── FIX: number inputs store the raw string so the user can fully clear them
   const textInput = (
     key: keyof ProductDraft,
     type = "text",
@@ -272,7 +284,9 @@ const AdminProducts: React.FC = () => {
       onChange={(e) =>
         setDraft((d) => ({
           ...d,
-          [key]: type === "number" ? Number(e.target.value) : e.target.value,
+          // For number fields: keep the raw string so the field can be emptied.
+          // Conversion to Number happens only in handleSave / validate.
+          [key]: type === "number" ? e.target.value : e.target.value,
         }))
       }
       placeholder={placeholder}
@@ -451,10 +465,10 @@ const AdminProducts: React.FC = () => {
               )}
 
               <div className="grid grid-cols-2 gap-4">
-                {field("Price (php) *", textInput("price", "number"))}
+                {field("Price *", textInput("price", "number", "0.00"))}
                 {field(
-                  "Original Price (php)",
-                  textInput("original_price", "number"),
+                  "Original Price",
+                  textInput("original_price", "number", "0.00"),
                 )}
               </div>
 
@@ -475,7 +489,7 @@ const AdminProducts: React.FC = () => {
                     ))}
                   </select>,
                 )}
-                {field("Stock", textInput("stock", "number"))}
+                {field("Stock", textInput("stock", "number", "0"))}
               </div>
 
               {field(
