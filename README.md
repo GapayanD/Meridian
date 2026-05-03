@@ -88,7 +88,7 @@
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-username/meridian-mart.git
+git clone https://github.com/GapayanD/meridian-mart.git
 cd meridian-mart
 ```
 
